@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Climate Events</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="auth-screen">
+        <div class="auth-card">
+            <h1>ClimateApp</h1>
+            <div class="auth-form">
+                <input type="text" id="username" placeholder="Username" class="auth-input">
+                <input type="password" id="password" placeholder="Password" class="auth-input">
+                <div class="auth-actions">
+                    <button id="login-btn" class="auth-btn primary">Login</button>
+                    <button id="signup-btn" class="auth-btn secondary">Create Account</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app" class="hidden">
+        <div id="map"></div>
+        <div class="app-controls">
+            <button id="create-event-btn" class="control-btn">+ Create Event</button>
+            <button id="profile-btn" class="control-btn">👤 Profile</button>
+        </div>
+
+        <div id="event-form" class="modal hidden">
+            <div class="modal-card">
+                <span class="close-btn" onclick="closeModal('event-form')">&times;</span>
+                <h2>Create Event</h2>
+                <input type="text" id="event-title" placeholder="Event Title" class="form-input">
+                <textarea id="event-desc" placeholder="Description" class="form-input"></textarea>
+                <div class="form-actions">
+                    <button id="save-event-btn" class="form-btn primary">Save</button>
+                    <button id="cancel-event-btn" class="form-btn secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="profile-modal" class="modal hidden">
+            <div class="modal-card">
+                <span class="close-btn" onclick="closeModal('profile-modal')">&times;</span>
+                <h2>My Profile</h2>
+                <div class="profile-info">
+                    <p>Welcome, <span id="profile-username"></span></p>
+                    <button onclick="logout()" class="auth-btn secondary">Logout</button>
+                </div>
+                <div class="profile-section">
+                    <h3>My Events</h3>
+                    <div id="my-events" class="events-list"></div>
+                </div>
+                <div class="profile-section">
+                    <h3>Following</h3>
+                    <div id="following-events" class="events-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

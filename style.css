@@ -1,0 +1,271 @@
+/* Modern Minimalist Design */
+:root {
+    --primary: #2B8BFC;
+    --primary-hover: #1A73E8;
+    --background: #F8FAFD;
+    --surface: #FFFFFF;
+    --text: #2D3748;
+    --text-secondary: #718096;
+    --border: #E2E8F0;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+  
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  html, body {
+    height: 100%;
+    background: var(--background);
+    color: var(--text);
+  }
+  
+  /* Auth Screen Modern Design */
+  #auth-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--surface);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  .auth-card {
+    background: var(--surface);
+    padding: 2.5rem;
+    border-radius: 1rem;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+  
+  .auth-card h1 {
+    font-weight: 700;
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
+    color: var(--text);
+  }
+  
+  .auth-input {
+    width: 100%;
+    padding: 0.875rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    transition: all 0.2s;
+  }
+  
+  .auth-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(43, 139, 252, 0.1);
+  }
+  
+  /* Modern Button Styles */
+  .auth-btn {
+    padding: 0.875rem 1.5rem;
+    border: none;
+    border-radius: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  
+  .auth-btn.primary {
+    background: var(--primary);
+    color: white;
+  }
+  
+  .auth-btn.primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+  }
+  
+  .auth-btn.secondary {
+    background: var(--background);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  
+  .auth-btn.secondary:hover {
+    background: var(--surface);
+  }
+  
+  /* Modern Map Controls */
+  .app-controls {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    z-index: 1000;
+  }
+  
+  .control-btn {
+    background: var(--surface);
+    padding: 0.875rem 1.5rem;
+    border: none;
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text);
+    font-weight: 500;
+  }
+  
+  .control-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .control-btn span {
+    font-size: 1.25rem;
+  }
+  
+  /* Modern Modal Design */
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+  }
+  
+  .modal.visible {
+    display: flex;
+  }
+  
+  .modal-card {
+    background: var(--surface);
+    padding: 1.5rem;
+    border-radius: 1rem;
+    width: 95%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+  
+  .modal-card h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    color: var(--text);
+  }
+  
+  /* Modern Form Elements */
+  .form-input {
+    width: 100%;
+    padding: 0.875rem;
+    margin: 0.5rem 0;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    transition: all 0.2s;
+  }
+  
+  .form-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(43, 139, 252, 0.1);
+  }
+  
+  /* Profile Section Design */
+  .profile-info {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+  }
+  
+  .username {
+    font-weight: 600;
+    color: var(--text);
+  }
+  
+  .events-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+  
+  .event-item {
+    background: var(--background);
+    padding: 1rem;
+    border-radius: 0.75rem;
+    border-left: 4px solid var(--primary);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .event-item strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  
+  .event-item p {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+  
+  /* Map Customization */
+  .leaflet-container {
+    background: var(--background) !important;
+    cursor: grab;
+  }
+  
+  .leaflet-control-zoom {
+    margin: 1.5rem !important;
+    border-radius: 0.75rem !important;
+    overflow: hidden;
+    box-shadow: var(--shadow) !important;
+    border: 1px solid var(--border) !important;
+  }
+  
+  .leaflet-control-zoom a {
+    width: 40px !important;
+    height: 40px !important;
+    line-height: 40px !important;
+    color: var(--text) !important;
+    background: var(--surface) !important;
+    border: none !important;
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 640px) {
+    .auth-card {
+      padding: 1.5rem;
+      margin: 1rem;
+    }
+    
+    .control-btn {
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+    }
+    
+    .modal-card {
+      padding: 1rem;
+    }
+  }
