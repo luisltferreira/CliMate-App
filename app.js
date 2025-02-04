@@ -1,112 +1,350 @@
-let currentUser = null;
-let map = null;
-
 // Initialize Map
-function initMap() {
-    map = L.map('map').setView([38.7223, -9.1393], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-}
+let map;
+let currentUser = null;
+let currentLocation = null;
+let events = JSON.parse(localStorage.getItem('events')) || [];
 
-// Auth System
-function login() {
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
+// Login Handler
+function handleLogin() {
+    const username = document.getElementById('usernameInput').value.trim();
     
-    const users = JSON.parse(localStorage.getItem('users')) || [];
-    const user = users.find(u => u.username === username && u.password === password);
-    
-    if (user) {
-        currentUser = user;
-        document.getElementById('auth-screen').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-        initMap();
-    } else {
-        alert('Invalid credentials');
-    }
-}
-
-function signup() {
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
-    
-    const users = JSON.parse(localStorage.getItem('users')) || [];
-    if (users.some(u => u.username === username)) {
-        alert('Username already exists');
+    if (!username) {
+        alert('Please enter a username');
         return;
     }
     
-    const newUser = {
-        id: Date.now(),
-        username,
-        password,
-        events: []
-    };
+    currentUser = username;
+    localStorage.setItem('currentUser', username);
     
-    users.push(newUser);
-    localStorage.setItem('users', JSON.stringify(users));
-    alert('Account created! Please login.');
+    // Hide login screen
+    document.getElementById('loginScreen').style.display = 'none';
+    
+    // Show map interface
+    document.getElementById('map-container').style.display = 'block';
+    document.querySelector('.floating-controls').style.display = 'flex';
+    
+    // Initialize map if not already initialized
+    if (!map) initMap();
 }
 
-// Event System
-function createEvent() {
-    const title = document.getElementById('event-title').value;
-    const description = document.getElementById('event-desc').value;
+// Initialize Map
+function initMap() {
+    map = L.map('map').setView([51.505, -0.09], 13);
     
+    L.tileLayer('https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d196d66770474b16b2442e9fe6edd937', {
+    }).addTo(map);
+
+    map.on('popupopen', function(e) {
+        const popup = e.popup;
+        const button = popup.getElement().querySelector('.interest-btn');
+        if (button) {
+            button.onclick = function() {
+                const eventId = this.dataset.eventId;
+                showInterest(eventId);
+            };
+        }
+    });
+
+    // Add click handler for interest buttons
+    map.on('click', function(e) {
+        if (e.originalEvent.target.closest('.interest-btn')) {
+            const eventId = e.originalEvent.target.dataset.eventId;
+            showInterest(eventId);
+        }
+    });
+
+    // Rest of your init code
+    events = JSON.parse(localStorage.getItem('events')) || [];
+    events.forEach(event => {
+        if (event.location) {
+            createMapMarker(event);
+        }
+    });
+}
+function showCreateEvent() {
+    // Reset location selection
+    currentLocation = null;
+    document.getElementById('coordinates').textContent = 'Selected coordinates: None';
+    
+    // Clear existing temporary marker
+    if (window.tempMarker) {
+        map.removeLayer(window.tempMarker);
+        window.tempMarker = null;
+    }
+    
+    // Show modal
+    document.getElementById('createEventModal').style.display = 'block';
+    
+    // Set up map click handler
+    map.off('click'); // Remove previous handlers
+    map.on('click', handleMapClick);
+}
+
+function handleMapClick(e) {
+    currentLocation = e.latlng;
+    document.getElementById('coordinates').textContent = 
+        `Selected coordinates: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+    
+    // Update temporary marker
+    if (window.tempMarker) map.removeLayer(window.tempMarker);
+    window.tempMarker = L.marker(e.latlng, {
+        icon: L.divIcon({
+            className: 'temp-marker',
+            html: '<div class="marker-pulse"></div>'
+        })
+    }).addTo(map);
+}
+
+function closeModal() {
+    document.getElementById('createEventModal').style.display = 'none';
+    
+    // Clean up
+    if (window.tempMarker) {
+        map.removeLayer(window.tempMarker);
+        window.tempMarker = null;
+    }
+    currentLocation = null;
+    document.getElementById('eventForm').reset();
+    document.getElementById('coordinates').textContent = 'Selected coordinates: None';
+    
+    // Restore map controls
+    map.off('click');
+}
+
+function disableMapInteractions(enable) {
+    if (enable) {
+        map.dragging.enable();
+        map.touchZoom.enable();
+        map.doubleClickZoom.enable();
+        map.scrollWheelZoom.enable();
+    } else {
+        map.dragging.disable();
+        map.touchZoom.disable();
+        map.doubleClickZoom.disable();
+        map.scrollWheelZoom.disable();
+    }
+}
+
+function setupMapClickHandler() {
+    // Clear previous handlers
+    map.off('click');
+    
+    // Add new click handler
+    map.on('click', function(e) {
+        currentLocation = e.latlng;
+        document.getElementById('coordinates').textContent = 
+            `Selected coordinates: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+        
+        // Add temporary marker
+        if (window.tempMarker) map.removeLayer(window.tempMarker);
+        window.tempMarker = L.marker(e.latlng, {
+            icon: L.divIcon({
+                className: 'temp-marker',
+                html: '<div class="marker-pulse"></div>'
+            })
+        }).addTo(map);
+    });
+}
+
+function handleEventSubmit(e) {
+    e.preventDefault();
+    
+    if (!currentLocation) {
+        alert('Please select a location by clicking on the map');
+        return;
+    }
+
     const newEvent = {
-        id: Date.now(),
-        title,
-        description,
-        location: map.getCenter(),
-        creator: currentUser.id
+        id: 'event-' + Date.now(), // Add event- prefix for better ID handling
+        title: document.getElementById('eventTitle').value,
+        description: document.getElementById('eventDescription').value,
+        date: document.getElementById('eventDate').value,
+        location: {
+            lat: currentLocation.lat,
+            lng: currentLocation.lng
+        }, // Store as serializable object
+        creator: currentUser,
+        interested: []
     };
-    
-    currentUser.events.push(newEvent);
-    localStorage.setItem('users', JSON.stringify(
-        JSON.parse(localStorage.getItem('users')).map(u => 
-            u.id === currentUser.id ? currentUser : u
-        )
-    ));
-    
-    L.marker(newEvent.location)
-        .addTo(map)
-        .bindPopup(`<b>${title}</b><p>${description}</p>`);
-    
-    closeModal('event-form');
+
+    events.push(newEvent);
+    localStorage.setItem('events', JSON.stringify(events));
+    createMapMarker(newEvent);
+    closeModal();
 }
 
-// Modal System
-function showModal(modalId) {
-    document.getElementById(modalId).classList.add('visible');
+function createMapMarker(event) {
+    const marker = L.marker([event.location.lat, event.location.lng], {
+        eventId: event.id,  // Store event ID with marker
+        icon: L.divIcon({
+            className: 'marker-animation',
+            html: `<div class="custom-marker">
+                <div class="marker-pulse"></div>
+                <div class="marker-center"></div>
+            </div>`
+        })
+    }).addTo(map);
+
+    marker.bindPopup(createPopupContent(event));
 }
 
-function closeModal(modalId) {
-    document.getElementById(modalId).classList.remove('visible');
-}
+function showInterest(eventId) {
+    if (!currentUser) {
+        alert('Please login first!');
+        return;
+    }
 
-// Profile System
-function showProfile() {
-    document.getElementById('profile-username').textContent = currentUser.username;
-    document.getElementById('my-events').innerHTML = currentUser.events
-        .map(event => `<div class="event-item">${event.title}</div>`)
-        .join('');
-    showModal('profile-modal');
-}
-
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    // Event Listeners
-    document.getElementById('login-btn').addEventListener('click', login);
-    document.getElementById('signup-btn').addEventListener('click', signup);
-    document.getElementById('create-event-btn').addEventListener('click', () => showModal('event-form'));
-    document.getElementById('profile-btn').addEventListener('click', showProfile);
-    document.getElementById('save-event-btn').addEventListener('click', createEvent);
+    // Get fresh data
+    events = JSON.parse(localStorage.getItem('events')) || [];
+    const eventIndex = events.findIndex(e => e.id === eventId);
     
-    // Check existing session
-    const lastUser = localStorage.getItem('currentUser');
-    if (lastUser) {
-        currentUser = JSON.parse(lastUser);
-        document.getElementById('auth-screen').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
+    if (eventIndex === -1) return;
+
+    // Toggle interest
+    const userIndex = events[eventIndex].interested.indexOf(currentUser);
+    if (userIndex === -1) {
+        events[eventIndex].interested.push(currentUser);
+    } else {
+        events[eventIndex].interested.splice(userIndex, 1);
+    }
+
+    // Update storage
+    localStorage.setItem('events', JSON.stringify(events));
+
+    // Update UI
+    updateEventMarkers(eventId);
+    showProfile(); // Refresh profile view
+}
+
+function updateEventMarkers(eventId) {
+    // Get fresh data from storage
+    const updatedEvents = JSON.parse(localStorage.getItem('events')) || [];
+    const event = updatedEvents.find(e => e.id === eventId);
+    
+    if (!event) return;
+
+    // Update all markers
+    map.eachLayer(layer => {
+        if (layer instanceof L.Marker && layer.options.eventId === eventId) {
+            const newContent = `
+                <div class="event-popup">
+                    <h3>${event.title}</h3>
+                    <p>${event.description}</p>
+                    <p>📅 ${new Date(event.date).toLocaleString()}</p>
+                    <button class="interest-btn" data-event-id="${event.id}">
+                        👍 Interested (${event.interested.length})
+                    </button>
+                </div>
+            `;
+            layer.setPopupContent(newContent);
+            if (layer.isPopupOpen()) {
+                layer.closePopup().openPopup();
+            }
+        }
+    });
+}
+
+function createPopupContent(event) {
+    return `
+        <div class="event-popup">
+            <h3>${event.title}</h3>
+            <p>${event.description}</p>
+            <p>📅 ${new Date(event.date).toLocaleString()}</p>
+            <button class="interest-btn" data-event-id="${event.id}">
+                👍 Interested (${event.interested.length})
+            </button>
+        </div>
+    `;
+}
+
+function updatePopupContent(eventId, newCount) {
+    // Find the event data
+    const event = events.find(e => e.id === eventId);
+    if (!event) return;
+
+    // Update all markers with this event ID
+    map.eachLayer(layer => {
+        if (layer instanceof L.Marker) {
+            const popup = layer.getPopup();
+            if (popup && layer.getLatLng().equals([event.location.lat, event.location.lng])) {
+                layer.setPopupContent(`
+                    <div class="event-popup">
+                        <h3>${event.title}</h3>
+                        <p>${event.description}</p>
+                        <p>📅 ${new Date(event.date).toLocaleString()}</p>
+                        <button onclick="showInterest('${eventId}')">
+                            👍 Interested (${newCount})
+                        </button>
+                    </div>
+                `);
+                layer.openPopup();
+            }
+        }
+    });
+}
+
+document.querySelector('.floating-controls').innerHTML = `
+    <button onclick="showCreateEvent()">Create Event</button>
+    <button onclick="showProfile()">Profile</button>
+    <button onclick="logout()">Logout</button>
+`;
+
+function logout() {
+    localStorage.removeItem('currentUser');
+    location.reload();
+}
+
+// Check for existing user on load
+window.addEventListener('load', () => {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+        currentUser = savedUser;
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('map').style.display = 'block';
+        document.querySelector('.floating-controls').style.display = 'flex';
         initMap();
+    } else {
+        // Explicitly show login screen if no user exists
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('loginScreen').style.opacity = '1';
     }
 });
+
+function showProfile() {
+    // Force refresh from localStorage
+    events = JSON.parse(localStorage.getItem('events')) || [];
+    
+    const createdEvents = events.filter(e => e.creator === currentUser);
+    const interestedEvents = events.filter(e => e.interested.includes(currentUser));
+
+    // Update DOM elements
+    document.getElementById('createdEvents').innerHTML = createdEvents
+        .map(event => `
+            <div class="event-item">
+                <h4>${event.title}</h4>
+                <p>${event.description}</p>
+                <small>${new Date(event.date).toLocaleString()}</small>
+                <p>Interested: ${event.interested.length}</p>
+            </div>
+        `).join('');
+
+    document.getElementById('interestedEvents').innerHTML = interestedEvents
+        .map(event => `
+            <div class="event-item">
+                <h4>${event.title}</h4>
+                <p>By: ${event.creator}</p>
+                <small>${new Date(event.date).toLocaleString()}</small>
+            </div>
+        `).join('');
+
+    // Show profile modal
+    document.getElementById('profileView').classList.add('active');
+}
+
+function hideProfile() {
+    document.getElementById('profileView').classList.remove('active');
+}
+
+console.log('Debugging Info:');
+console.log('Current User:', localStorage.getItem('currentUser'));
+console.log('Stored Events:', JSON.parse(localStorage.getItem('events')));
