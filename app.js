@@ -44,12 +44,6 @@ function initMap() {
                 L.tileLayer('https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d196d66770474b16b2442e9fe6edd937', {
                 }).addTo(map);
 
-                // Add a user location marker
-                L.marker(userCoords, {
-                    icon: L.divIcon({
-                        className: 'user-location-marker',
-                        html: '<div class="user-pulse"></div>'
-                    })
                 }).addTo(map).bindPopup('Your current location');
 
                 loadExistingEvents();
