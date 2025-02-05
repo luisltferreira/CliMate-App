@@ -29,38 +29,53 @@ function handleLogin() {
 
 // Initialize Map
 function initMap() {
-    map = L.map('map').setView([51.505, -0.09], 13);
-    
-    L.tileLayer('https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d196d66770474b16b2442e9fe6edd937', {
-    }).addTo(map);
+    // First try to get user's location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const userCoords = [
+                    position.coords.latitude,
+                    position.coords.longitude
+                ];
+                
+                // Initialize map with user's location
+                map = L.map('map').setView(userCoords, 15);
+                
+                L.tileLayer('https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d196d66770474b16b2442e9fe6edd937', {
+                }).addTo(map);
 
-    map.on('popupopen', function(e) {
-        const popup = e.popup;
-        const button = popup.getElement().querySelector('.interest-btn');
-        if (button) {
-            button.onclick = function() {
-                const eventId = this.dataset.eventId;
-                showInterest(eventId);
-            };
-        }
-    });
+                // Add a user location marker
+                L.marker(userCoords, {
+                    icon: L.divIcon({
+                        className: 'user-location-marker',
+                        html: '<div class="user-pulse"></div>'
+                    })
+                }).addTo(map).bindPopup('Your current location');
 
-    // Add click handler for interest buttons
-    map.on('click', function(e) {
-        if (e.originalEvent.target.closest('.interest-btn')) {
-            const eventId = e.originalEvent.target.dataset.eventId;
-            showInterest(eventId);
-        }
-    });
-
-    // Rest of your init code
-    events = JSON.parse(localStorage.getItem('events')) || [];
-    events.forEach(event => {
-        if (event.location) {
-            createMapMarker(event);
-        }
-    });
+                loadExistingEvents();
+            },
+            (error) => {
+                handleGeolocationError(error);
+                initDefaultMap();
+            }
+        );
+    } else {
+        initDefaultMap();
+    }
 }
+
+function initDefaultMap() {
+    // Fallback to default coordinates
+    map = L.map('map').setView([51.505, -0.09], 13);
+    L.tileLayer('https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=d196d66770474b16b2442e9fe6edd937').addTo(map);
+    loadExistingEvents();
+}
+
+function handleGeolocationError(error) {
+    console.warn('Geolocation error:', error);
+    alert('Unable to get your location. Using default map view.');
+}
+
 function showCreateEvent() {
     // Reset location selection
     currentLocation = null;
