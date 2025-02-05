@@ -76,6 +76,24 @@ function handleGeolocationError(error) {
     alert('Unable to get your location. Using default map view.');
 }
 
+function findMyLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                map.setView([
+                    position.coords.latitude,
+                    position.coords.longitude
+                ], 15);
+            },
+            (error) => {
+                alert('Error getting location: ' + error.message);
+            }
+        );
+    } else {
+        alert("Geolocation is not supported by this browser.");
+    }
+}
+
 function showCreateEvent() {
     // Reset location selection
     currentLocation = null;
