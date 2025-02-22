@@ -3,7 +3,7 @@ const STATE = {
     map: null,
     events: [],
     user: {
-        id: 'user1',
+        id: null,
         name: '',
         createdEvents: [],
         interestedEvents: []
@@ -25,8 +25,8 @@ const STATE = {
 // Event handlers
 const EventHandlers = {
     saveEvents() {
-        localStorage.setItem('events', JSON.stringify(STATE.events));
-        localStorage.setItem('user', JSON.stringify(STATE.user));
+        localStorage.setItem('sharedEvents', JSON.stringify(STATE.events));
+        localStorage.setItem(`userData_${STATE.user.id}`, JSON.stringify(STATE.user));
     },
 
     validateEventForm(title, description, date, time, category, location) {
@@ -53,6 +53,8 @@ const EventHandlers = {
 
 // Map functionality
 const MapManager = {
+    eventMarkers: [],
+
     async init() {
         try {
             STATE.map = L.map('map', {
@@ -156,51 +158,84 @@ const MapManager = {
     },
 
     clearEventMarkers() {
-        if (!STATE.map) return;
-        
-        STATE.map.eachLayer(layer => {
-            if (layer instanceof L.Marker && layer !== STATE.locationMarker) {
-                STATE.map.removeLayer(layer);
-            }
+        this.eventMarkers.forEach(marker => {
+            marker.remove();
         });
+        this.eventMarkers = [];
     },
 
     renderEvents() {
-        this.clearEventMarkers();
-        STATE.events.forEach(event => {
-            try {
-                const eventIcon = L.divIcon({
-                    className: 'custom-marker event-marker',
-                    html: `
-                        <div class="marker-pin ${event.category}">
-                            <i class="fas fa-map-marker-alt"></i>
-                        </div>
-                    `,
-                    iconSize: [30, 42],
-                    iconAnchor: [15, 42],
-                    popupAnchor: [0, -42]
-                });
+        try {
+            // Clear existing markers
+            this.clearEventMarkers();
+            
+            // Add markers for each event
+            if (STATE.events && STATE.events.length > 0) {
+                console.log('Event details:', STATE.events.map(event => ({
+                    lat: event.lat,
+                    lng: event.lng,
+                    title: event.title,
+                    category: event.category
+                })));
+                console.log('Rendering events:', STATE.events); // Debug log
 
-                const marker = L.marker([event.lat, event.lng], { icon: eventIcon }).addTo(STATE.map);
-                const popup = L.popup().setContent(this.createEventPopup(event));
-                marker.bindPopup(popup);
-            } catch (error) {
-                console.error('Failed to render event:', event, error);
+                STATE.events.forEach(event => {
+                    try {
+                        const marker = L.marker([parseFloat(event.lat), parseFloat(event.lng)], {
+                            icon: this.createEventIcon(event.category)
+                        }).addTo(STATE.map);
+
+                        marker.bindPopup(this.createEventPopup(event));
+                        this.eventMarkers.push(marker);
+                    } catch (err) {
+                        console.error('Error creating marker for event:', event, err);
+                    }
+                });
+            } else {
+                console.log('No events to render'); // Debug log
             }
+        } catch (error) {
+            console.error('Failed to render events:', error);
+        }
+    },
+
+    createEventIcon(category) {
+        return L.divIcon({
+            className: 'custom-marker',
+            html: `
+                <div class="marker-pin ${category}">
+                    <i class="fas fa-map-marker-alt"></i>
+                </div>
+            `,
+            iconSize: [30, 42],
+            iconAnchor: [15, 42],
+            popupAnchor: [0, -42]
         });
     },
 
     createEventPopup(event) {
-        const isInterested = event.interestedUsers && event.interestedUsers.includes(STATE.user.id);
+        const isInterested = STATE.user.interestedEvents.includes(event.id);
+        const isCreator = event.creator_id === STATE.user.id;
+        
+        const interestButton = isCreator ? '' : `
+            <button 
+                onclick="UI.showInterest('${event.id}')" 
+                class="interest-btn${isInterested ? ' interested' : ''}"
+            >
+                ${isInterested ? 'Remove Interest' : 'Show Interest'}
+            </button>
+        `;
+        
         return `
             <div class="event-popup">
-                <h3>${this.escapeHtml(event.title)}</h3>
-                <p>${this.escapeHtml(event.description)}</p>
-                <p>Date: ${this.escapeHtml(event.date)} at ${this.escapeHtml(event.time)}</p>
-                <p>Category: ${this.escapeHtml(event.category)}</p>
-                <button onclick="UI.showInterest(${event.id}); return false;" class="interest-btn ${isInterested ? 'interested' : ''}">
-                    ${isInterested ? 'Remove Interest' : 'Show Interest'}
-                </button>
+                <h3>${UI.escapeHtml(event.title)}</h3>
+                <p>${UI.escapeHtml(event.description)}</p>
+                <p>
+                    <strong>When:</strong> ${UI.escapeHtml(event.date)} at ${UI.escapeHtml(event.time)}<br>
+                    <strong>Category:</strong> ${UI.escapeHtml(event.category)}<br>
+                    <strong>Created by:</strong> ${UI.escapeHtml(event.creator_name)}
+                </p>
+                ${interestButton}
             </div>
         `;
     },
@@ -401,10 +436,9 @@ const UI = {
         `;
     },
 
-    createEvent() {
+    async createEvent() {
         try {
             const newEvent = {
-                id: Date.now(),
                 title: STATE.eventData.title,
                 description: STATE.eventData.description,
                 date: STATE.eventData.date,
@@ -413,12 +447,21 @@ const UI = {
                 lat: STATE.selectedLocation.lat,
                 lng: STATE.selectedLocation.lng,
                 creator: STATE.user.id,
-                interestedUsers: []
+                creatorName: STATE.user.name
             };
 
-            STATE.events.push(newEvent);
-            STATE.user.createdEvents.push(newEvent.id);
-            EventHandlers.saveEvents();
+            // Create event in database
+            const createdEvent = await DB.createEvent(newEvent);
+            
+            // Update local state
+            STATE.events.push(createdEvent);
+            STATE.user.createdEvents.push(createdEvent.id);
+            
+            // Update user's created events in database
+            await DB.updateUserEvents(STATE.user.id, {
+                created_events: STATE.user.createdEvents
+            });
+
             MapManager.renderEvents();
             this.closeModals();
             this.showToast('Event created successfully!', 'success');
@@ -428,34 +471,31 @@ const UI = {
         }
     },
 
-    showInterest(eventId) {
+    async showInterest(eventId) {
         try {
             const event = STATE.events.find(e => e.id === eventId);
-            if (!event) {
-                console.error('Event not found:', eventId);
-                return;
-            }
+            if (!event) return;
 
-            const isCurrentlyInterested = event.interestedUsers.includes(STATE.user.id);
-
-            if (isCurrentlyInterested) {
-                event.interestedUsers = event.interestedUsers.filter(id => id !== STATE.user.id);
-                STATE.user.interestedEvents = STATE.user.interestedEvents.filter(id => id !== eventId);
-                this.showToast('You are no longer interested in this event.', 'success');
-            } else {
-                event.interestedUsers.push(STATE.user.id);
-                STATE.user.interestedEvents.push(eventId);
-                this.showToast('You are now interested in this event!', 'success');
-            }
-
-            EventHandlers.saveEvents();
-            MapManager.renderEvents();
+            const isInterested = STATE.user.interestedEvents.includes(eventId);
             
-            if (document.getElementById('profile').style.display === 'block') {
-                this.renderProfileEvents();
+            if (isInterested) {
+                STATE.user.interestedEvents = STATE.user.interestedEvents.filter(id => id !== eventId);
+            } else {
+                STATE.user.interestedEvents.push(eventId);
             }
+
+            // Update database
+            await DB.showInterest(eventId, STATE.user.id, !isInterested);
+            await DB.updateUserEvents(STATE.user.id, {
+                interested_events: STATE.user.interestedEvents
+            });
+
+            // Update UI
+            MapManager.renderEvents();
+            this.showProfile(); // Refresh profile view
+            
         } catch (error) {
-            console.error('Error toggling interest:', error);
+            console.error('Failed to update interest:', error);
             this.showToast('Failed to update interest. Please try again.', 'error');
         }
     },
@@ -465,68 +505,65 @@ const UI = {
         this.renderProfileEvents();
     },
 
-    renderProfileEvents() {
-        const createdEventsDiv = document.getElementById('createdEvents');
-        const interestedEventsDiv = document.getElementById('interestedEvents');
-        const profileTitle = document.querySelector('#profile h2');
-
-        if (profileTitle) {
-            profileTitle.textContent = `${STATE.user.name}'s Profile`;
-        }
-
-        if (!createdEventsDiv || !interestedEventsDiv) {
-            console.error('Profile containers not found');
-            return;
-        }
-
+    async renderProfileEvents() {
         try {
-            // Ensure events array exists
-            if (!Array.isArray(STATE.events)) {
-                STATE.events = [];
-            }
+            const createdEventsContainer = document.getElementById('createdEvents');
+            const interestedEventsContainer = document.getElementById('interestedEvents');
+            
+            // Get fresh data from database
+            const events = await DB.getEvents();
+            
+            // Filter created events
+            const createdEvents = events.filter(event => 
+                STATE.user.createdEvents.includes(event.id)
+            );
+            
+            // Filter interested events
+            const interestedEvents = events.filter(event => 
+                STATE.user.interestedEvents.includes(event.id)
+            );
 
-            // Get created events
-            const createdEvents = STATE.events
-                .filter(e => e && e.creator === STATE.user.id)
-                .map(e => this.createProfileEventItem(e, 'created'))
-                .join('');
+            // Render created events
+            createdEventsContainer.innerHTML = createdEvents.length ? 
+                createdEvents.map(event => this.createProfileEventItem(event, 'created')).join('') :
+                '<div class="no-events">No created events yet</div>';
 
-            // Get interested events
-            const interestedEvents = STATE.events
-                .filter(e => e && e.interestedUsers && e.interestedUsers.includes(STATE.user.id))
-                .map(e => this.createProfileEventItem(e, 'interested'))
-                .join('');
+            // Render interested events
+            interestedEventsContainer.innerHTML = interestedEvents.length ?
+                interestedEvents.map(event => this.createProfileEventItem(event, 'interested')).join('') :
+                '<div class="no-events">No interested events yet</div>';
 
-            // Set content with fallback for empty lists
-            createdEventsDiv.innerHTML = createdEvents || '<div class="no-events">No events created yet</div>';
-            interestedEventsDiv.innerHTML = interestedEvents || '<div class="no-events">No events marked as interested</div>';
         } catch (error) {
-            console.error('Error rendering profile events:', error);
-            createdEventsDiv.innerHTML = '<div class="error-message">Failed to load events</div>';
-            interestedEventsDiv.innerHTML = '<div class="error-message">Failed to load events</div>';
+            console.error('Failed to render profile events:', error);
+            this.showToast('Failed to load profile events', 'error');
         }
     },
 
     createProfileEventItem(event, type) {
         if (!event || !event.title) return '';
         
-        const isInterested = event.interestedUsers && event.interestedUsers.includes(STATE.user.id);
+        const isInterested = STATE.user.interestedEvents.includes(event.id);
+        const isCreator = event.creator_id === STATE.user.id;
+        
         const interestButton = type === 'created' ? '' : `
-            <button onclick="UI.showInterest(${event.id})" class="interest-btn ${isInterested ? 'interested' : ''}">
+            <button onclick="UI.showInterest('${event.id}')" class="interest-btn ${isInterested ? 'interested' : ''}">
                 ${isInterested ? 'Remove Interest' : 'Show Interest'}
             </button>
         `;
 
+        const creatorInfo = isCreator ? `<div class="event-creator">Created by you</div>` : '';
+
         return `
             <div class="event-list-item">
                 <div class="event-title">${this.escapeHtml(event.title)}</div>
+                ${creatorInfo}
                 <div class="event-details">
                     <div class="event-info">
                         <div>${this.escapeHtml(event.date)} at ${this.escapeHtml(event.time || '')}</div>
                         <div class="event-category">${this.escapeHtml(event.category || 'No category')}</div>
                     </div>
                     <div class="event-actions">
-                        <button onclick="UI.showEventOnMap(${event.id})" class="view-map-btn">
+                        <button onclick="UI.showEventOnMap('${event.id}')" class="view-map-btn">
                             <i class="fas fa-map-marker-alt"></i> View on Map
                         </button>
                         ${interestButton}
@@ -752,31 +789,143 @@ const UI = {
         }
 
         try {
-            STATE.user.name = name;
-            EventHandlers.saveEvents();
+            // Show loading screen first
+            const loadingScreen = document.getElementById('loadingScreen');
+            loadingScreen.classList.add('show');
             
-            const startBtn = nameInput.closest('.welcome-form').querySelector('.start-btn');
-            const originalText = startBtn.innerHTML;
-            startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-            startBtn.disabled = true;
+            // Then hide welcome screen
+            document.getElementById('welcomeScreen').classList.remove('show');
+
+            // Check for existing user or create new one
+            let user = await DB.getUserByName(name);
+            
+            if (!user) {
+                user = await DB.createUser({ name });
+            }
+
+            // Update STATE with proper array types
+            STATE.user = {
+                id: user.id,
+                name: user.name,
+                createdEvents: Array.isArray(user.created_events) ? user.created_events : [],
+                interestedEvents: Array.isArray(user.interested_events) ? user.interested_events : []
+            };
 
             const position = await this.requestLocationPermission();
+
+            // Load events from database
+            const events = await DB.getEvents();
+            console.log('Loaded events:', events); // Debug log
+            STATE.events = events;
+
+            // Before showing the map, wait for the loading screen animation
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Show map and menu
+            const map = document.getElementById('map');
+            const menu = document.querySelector('.menu');
             
-            // Hide welcome screen
-            document.getElementById('welcomeScreen').style.display = 'none';
+            map.style.visibility = 'visible';
+            menu.style.display = 'flex';
+            menu.classList.add('show');
+            loadingScreen.classList.remove('show');
             
-            setTimeout(() => {
-                STATE.map.setView([position.coords.latitude, position.coords.longitude], 13);
-                this.showToast(`Welcome, ${name}! You can now explore events in your area.`, 'success');
-                startBtn.innerHTML = originalText;
-                startBtn.disabled = false;
-            }, 500);
+            STATE.map.setView([position.coords.latitude, position.coords.longitude], 13);
+            STATE.map.invalidateSize();
+            this.showToast(`Welcome${user ? ' back' : ''}, ${name}!`, 'success');
+            MapManager.renderEvents();
 
         } catch (error) {
-            this.showToast('We need your location to show nearby events. Please enable location access and try again.', 'error');
-            const startBtn = nameInput.closest('.welcome-form').querySelector('.start-btn');
-            startBtn.innerHTML = originalText;
-            startBtn.disabled = false;
+            console.error('Error in startApp:', error);
+            document.getElementById('loadingScreen').classList.remove('show');
+            this.showToast('An error occurred. Please try again.', 'error');
+        }
+    },
+
+    async logout() {
+        try {
+            // Reset state
+            STATE.user = {
+                id: null,
+                name: '',
+                createdEvents: [],
+                interestedEvents: []
+            };
+            STATE.locationPermission = false;
+            STATE.events = [];
+            
+            // Close profile modal
+            this.closeModals();
+            
+            // Show welcome screen
+            const welcomeScreen = document.getElementById('welcomeScreen');
+            welcomeScreen.classList.add('show');
+            
+            // Hide menu and map
+            document.querySelector('.menu').classList.remove('show');
+            document.getElementById('map').style.visibility = 'hidden';
+            
+            this.showToast('You have been logged out', 'info');
+        } catch (error) {
+            console.error('Logout failed:', error);
+            this.showToast('Failed to logout. Please try again.', 'error');
+        }
+    },
+
+    toggleAuthForm(type) {
+        document.getElementById('loginForm').classList.toggle('active', type === 'login');
+        document.getElementById('signupForm').classList.toggle('active', type === 'signup');
+    },
+
+    async handleSignup(event) {
+        event.preventDefault();
+        const name = document.getElementById('signupName').value.trim();
+        const email = document.getElementById('signupEmail').value.trim();
+        const password = document.getElementById('signupPassword').value;
+
+        try {
+            const result = await DB.signUp(email, password, name);
+            
+            if (result.needsEmailConfirmation) {
+                this.showToast(
+                    'Please check your email to confirm your account before logging in',
+                    'info',
+                    10000 // Show for 10 seconds
+                );
+                // Switch to login form
+                this.toggleAuthForm('login');
+                return;
+            }
+
+            STATE.user = result;
+            this.startApp();
+        } catch (error) {
+            console.error('Signup failed:', error);
+            this.showToast(error.message, 'error');
+        }
+    },
+
+    async handleLogin(event) {
+        event.preventDefault();
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+
+        try {
+            const user = await DB.login(email, password);
+            if (!user) {
+                this.showToast('Invalid login credentials', 'error');
+                return;
+            }
+            STATE.user = user;
+            this.startApp();
+        } catch (error) {
+            console.error('Login failed:', error);
+            this.showToast(
+                error.message === 'Invalid login credentials'
+                    ? 'Invalid email or password'
+                    : error.message,
+                'error'
+            );
         }
     }
 };
@@ -798,49 +947,41 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Add this function to load saved data
-const loadSavedData = () => {
+// Update the loadSavedData function
+const loadSavedData = async () => {
     try {
-        const savedEvents = localStorage.getItem('events');
-        const savedUser = localStorage.getItem('user');
-        
-        if (savedEvents) {
-            STATE.events = JSON.parse(savedEvents);
-        }
-        
-        if (savedUser) {
-            STATE.user = JSON.parse(savedUser);
-        }
-    } catch (error) {
-        console.error('Error loading saved data:', error);
-        // Initialize with empty arrays if loading fails
-        STATE.events = [];
+        // Load all events
+        const events = await DB.getEvents();
+        STATE.events = events || [];
+
+        // Reset user state
         STATE.user = {
-            id: 'user1',
+            id: null,
             name: '',
             createdEvents: [],
             interestedEvents: []
         };
+        STATE.locationPermission = false;
+    } catch (error) {
+        console.error('Error loading saved data:', error);
+        STATE.events = [];
     }
 };
 
 // Initialize the app
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     try {
-        loadSavedData();
-        MapManager.init();
+        await loadSavedData();
+        await MapManager.init();
         
         const welcomeScreen = document.getElementById('welcomeScreen');
+        const map = document.getElementById('map');
+        const menu = document.querySelector('.menu');
         
-        // Show welcome screen if needed
-        if (!STATE.user.name || !STATE.locationPermission) {
-            welcomeScreen.style.display = 'flex';
-            setTimeout(() => {
-                welcomeScreen.classList.add('show');
-            }, 100);
-        } else {
-            welcomeScreen.style.display = 'none';
-        }
+        // Always show welcome screen on initial load
+        welcomeScreen.classList.add('show');
+        map.style.visibility = 'hidden';
+        menu.style.display = 'none';
         
     } catch (error) {
         console.error('App initialization failed:', error);
@@ -851,4 +992,10 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('error', (event) => {
     console.error('Global error:', event.error);
     alert('An error occurred. Please refresh the page.');
+});
+
+// Add event listeners
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('signupForm').addEventListener('submit', (e) => UI.handleSignup(e));
+    document.getElementById('loginForm').addEventListener('submit', (e) => UI.handleLogin(e));
 });
