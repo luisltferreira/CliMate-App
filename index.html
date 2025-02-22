@@ -2,68 +2,128 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CliMate App</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://api.fontshare.com/v2/css?f[]=citrine@400,500,600,700&display=swap" rel="stylesheet">
+    <link href="https://use.typekit.net/[your-kit-code].css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Helvetica+Neue:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Login Screen -->
-    <div id="loginScreen">
-        <div class="login-box">
-            <h1>Welcome to CliMate App</h1>
-            <input type="text" id="usernameInput" class="login-input" placeholder="Enter your username" autocomplete="off">
-            <button class="login-btn" onclick="handleLogin()">
-                <span class="btn-content">Continue</span>
-                <span class="loading-dots" style="display: none;">
-                    <span>.</span><span>.</span><span>.</span>
-                </span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Map Interface -->
-    <div id="map-container">
-        <div id="map"></div>
-        <div class="floating-controls">
-            <button onclick="showCreateEvent()">Create Event</button>
-            <button onclick="showProfile()">Profile</button>
-            <button onclick="findMyLocation()" class="location-btn">📍</button>
-            <button onclick="logout()">Logout</button>
-        </div>
-    </div>
-
-    <div id="profileView" class="profile-modal">
-        <div class="profile-content">
-            <span class="close-profile" onclick="hideProfile()">&times;</span>
-            <h2>Your Profile</h2>
-            <div class="profile-section">
-                <h3>Created Events</h3>
-                <div id="createdEvents" class="events-list"></div>
-            </div>
-            <div class="profile-section">
-                <h3>Interested Events</h3>
-                <div id="interestedEvents" class="events-list"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="createEventModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <h2>Create New Event</h2>
-            <form id="eventForm" onsubmit="handleEventSubmit(event)">
-                <input type="text" id="eventTitle" placeholder="Event Title" required>
-                <textarea id="eventDescription" placeholder="Event Description" required></textarea>
-                <input type="datetime-local" id="eventDate" required>
-                <div class="location-selection">
-                    <p>Click on the map to select location</p>
-                    <div id="coordinates">Selected coordinates: None</div>
+    <div id="welcomeScreen" class="welcome-screen initially-hidden">
+        <div class="welcome-content">
+            <h1>Welcome to CliMate</h1>
+            <p>Connect with local events around you</p>
+            
+            <div class="welcome-form">
+                <div class="input-group">
+                    <label for="userName">What's your name?</label>
+                    <input type="text" id="userName" placeholder="Enter your name" required>
                 </div>
-                <button type="submit">Create Event</button>
-            </form>
+                
+                <div class="location-permission">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <p>We need your location to show you nearby events</p>
+                </div>
+
+                <button onclick="UI.startApp()" class="start-btn">
+                    <span>Get Started</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
         </div>
     </div>
+
+    <div id="map"></div>
+    <div class="map-overlay"></div>
+
+    <div class="menu">
+        <button onclick="UI.showCreateEvent()">Create Event</button>
+        <button onclick="UI.showProfile()">Profile</button>
+    </div>
+
+    <!-- Backdrop (transparent overlay) -->
+    <div id="backdrop" class="backdrop"></div>
+
+    <!-- Create Event Modal -->
+    <div id="createEventModal" class="modal">
+        <h2>Create Event</h2>
+        <div class="step-indicators">
+            <div class="step active" data-step="1">Details</div>
+            <div class="step" data-step="2">Location</div>
+            <div class="step" data-step="3">Preview</div>
+        </div>
+        
+        <div class="step-content">
+            <!-- Step 1: Event Details -->
+            <div class="step-pane active" id="step1">
+                <form id="eventDetailsForm">
+                    <input type="text" id="eventTitle" placeholder="Event Title" required>
+                    <textarea id="eventDesc" placeholder="Event Description" required></textarea>
+                    <input type="date" id="eventDate" required>
+                    <input type="time" id="eventTime" required>
+                    <select id="eventCategory" required>
+                        <option value="">Select Category</option>
+                        <option value="social">Social Gathering</option>
+                        <option value="sports">Sports</option>
+                        <option value="education">Education</option>
+                        <option value="other">Other</option>
+                    </select>
+                </form>
+            </div>
+
+            <!-- Step 2: Location Selection -->
+            <div class="step-pane" id="step2">
+                <div class="location-options">
+                    <div class="address-input">
+                        <input type="text" id="addressInput" placeholder="Enter address" class="location-search">
+                        <button type="button" onclick="UI.searchAddress(document.getElementById('addressInput').value)">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                    </div>
+                    <div class="location-divider">- OR -</div>
+                    <button type="button" class="location-btn" onclick="UI.toggleMapSelection()">
+                        <i class="fas fa-map-marker-alt"></i>
+                        Select on Map
+                    </button>
+                </div>
+                <div id="locationPreview">
+                    <p>No location selected</p>
+                </div>
+            </div>
+
+            <!-- Step 3: Preview -->
+            <div class="step-pane" id="step3">
+                <div class="event-preview">
+                    <h3>Event Preview</h3>
+                    <div id="previewContent"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-buttons">
+            <button type="button" id="prevStep" onclick="UI.prevStep()" style="display: none;">Previous</button>
+            <button type="button" id="nextStep" onclick="UI.nextStep()">Next</button>
+            <button type="button" id="createEventBtn" onclick="UI.createEvent()" style="display: none;">Create Event</button>
+            <button type="button" onclick="UI.closeModals()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profile" class="modal profile">
+        <h2>Your Profile</h2>
+        <h3>Created Events</h3>
+        <div id="createdEvents" class="events-list"></div>
+        <h3>Interested Events</h3>
+        <div id="interestedEvents" class="events-list"></div>
+        <button onclick="UI.closeModals()">Close</button>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="app.js"></script>
